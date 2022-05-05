@@ -1,3 +1,27 @@
+function getNotes() {
+    const notes = document.querySelector('.notesdiv');
+
+    fetch('config.json')
+        .then((data) => data.json())
+        .then((data) => {
+            console.log(data);
+            data.forEach((elem, i) => {
+                const note = document.createElement('div');
+                note.setAttribute('class', 'note');
+                note.appendChild(document.createTextNode(elem.text));
+                note.addEventListener('click', function (e) {
+                    chrome.tabs.create({
+                        url: elem.url
+                    });
+                }, false);
+                notes.appendChild(note);
+            });
+        })
+        .catch((err) => {
+            console.log('Error: ', err);
+        });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const title = document.createElement('h1');
     title.setAttribute('class', 'header')
@@ -14,35 +38,50 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelector('body').appendChild(notesdiv);
 
     const notes = document.querySelector('.notesdiv');
-    //const query = { active: true, currentWindow: true };
 
-    const note = document.createElement('div');
-    note.setAttribute('class', 'note');
+    // getNotes();
+
+    const noteobj = {};
+    const query = { active: true, currentWindow: true };
+    chrome.tabs.query(query, (tabs) => {
+        noteobj.url = tabs[0].url;
+    });
+
     chrome.tabs.executeScript({
         code: "window.getSelection().toString();"
     }, function (selection) {
-        console.log(selection);
-        if (!chrome.runtime.lastError) {
-        note.innerHTML = selection;//[0];
-        }
+        if (selection[0] !== '') {
+            noteobj.text = selection[0];
+            console.log(noteobj);
+            fetch(chrome.runtime.getURL('config.json'), {
+                method: 'POST',
+                body: JSON.stringify(noteobj),
+                headers: {
+                    'Content-Type': 'application/JSON; charset=UTF-8'
+                }
+            })
+                .then((response) => response.json())
+                .then((data) => {
+                    console.log(data);
+                    const note = document.createElement('div');
+                    note.setAttribute('class', 'note');
+                    note.appendChild(document.createTextNode(noteobj.text));
+                    note.addEventListener('click', function (e) {
+                        // chrome.tabs.update
+                        chrome.tabs.create({
+                            url: noteobj.url
+                        });
+                    }, false);
+                    notes.appendChild(note);
+                })
+                .then(getNotes)
+                .catch((err) => {
+                    console.log('Error: ', err);
+                });
+        } else getNotes();
     });
-    notes.appendChild(note);
-    
-    // chrome.tabs.query(query, (tabs) => {
-    //     const note = document.createElement('div');
-    //     note.setAttribute('class', 'note');
-    //     note.innerHTML = getHighlightedText(tabs[0].url);
-    //     notes.appendChild(note);
-    //     console.log(tabs);
-    // });
-});
 
-const getHighlightedText = (text) => {
-    var notetext = '';
-    if (window.getSelection) {
-        notetext = window.getSelection().toString();
-    } else if (document.selection && document.selection.type != "Control") {
-        notetext = document.selection.createRange().text;
-    }
-    return `${notetext} from ${text}`;
-}
+
+
+
+});
